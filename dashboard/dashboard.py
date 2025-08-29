@@ -4,7 +4,6 @@ import numpy as np
 import streamlit as st
 import sqlite3
 import pandas as pd
-from st_aggrid import AgGrid, GridOptionsBuilder
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
