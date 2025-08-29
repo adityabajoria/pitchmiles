@@ -12,7 +12,8 @@ from pathlib import Path
 
 DATASETTE_URL = "http://localhost:8001/football"
 
-conn = sqlite3.connect('/Users/aditya/datascience-projects/pitch-miles/sql/football.db')
+DB_PATH = Path(__file__).resolve().parents[1] / "sql" / "football.db"
+conn = sqlite3.connect(DB_PATH)
 
 # --- GLOBAL STYLING ---
 st.markdown(
