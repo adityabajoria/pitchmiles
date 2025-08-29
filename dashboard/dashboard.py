@@ -12,29 +12,9 @@ from pathlib import Path
 
 DATASETTE_URL = "http://localhost:8001/football"
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   # -> pitchmiles/
-REPO_DB = PROJECT_ROOT / "sql" / "football.db"       # commit your db here if read-only
-TMP_DB  = Path("/mount/tmp/football.db")             # writable location on Cloud
+DB_PATH = Path(__file__).resolve().parents[1] / "sql" / "football.db"
 
-# Optional: allow override via env var
-env_db = os.getenv("FOOTBALL_DB")
-candidates = [env_db, REPO_DB, TMP_DB]
-
-db_path = next((Path(p) for p in candidates if p and Path(p).exists()), None)
-
-if db_path is None:
-    st.error(
-        "Database not found. Expected at `sql/football.db` (in your repo) "
-        "or `/mount/tmp/football.db`. Commit the DB for read-only use, "
-        "or generate it at runtime in /mount/tmp."
-    )
-    st.stop()
-
-# Use read-only mode for a DB that lives inside the repo; /mount/tmp is writable
-if REPO_DB.exists() and db_path.samefile(REPO_DB):
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, check_same_thread=False)
-else:
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
 
 # --- GLOBAL STYLING ---
 st.markdown(
