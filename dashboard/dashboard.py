@@ -1,7 +1,6 @@
 import requests
 import os
 import numpy as np
-from sklearn.cluster import KMeans
 import streamlit as st
 import sqlite3
 import pandas as pd
