@@ -80,10 +80,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
-
-
-
 # --- NAVBAR ---
 selected = option_menu(
     menu_title=None,
