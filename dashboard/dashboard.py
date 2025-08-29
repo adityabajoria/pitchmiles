@@ -12,9 +12,41 @@ from pathlib import Path
 
 DATASETTE_URL = "http://localhost:8001/football"
 
-DB_PATH = Path(__file__).resolve().parents[1] / "sql" / "football.db"
+def get_sqlite_conn():
+    # 1) DB committed in repo (expected at pitchmiles/sql/football.db)
+    repo_root = Path(__file__).resolve().parents[1]      # -> pitchmiles/
+    bundled_db = repo_root / "sql" / "football.db"        # commit your DB here
 
-conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
+    # 2) Writable location on Streamlit Cloud
+    tmp_dir = Path("/mount/tmp")
+    runtime_db = tmp_dir / "football.db"
+
+    # Ensure temp dir exists on Cloud (harmless locally)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Make sure the DB file exists in the repo
+    if not bundled_db.exists():
+        st.error(
+            "⚠️ Database not found in the repo at `sql/football.db`.\n\n"
+            "Please add your DB file to `pitchmiles/sql/football.db`, commit & push."
+        )
+        st.stop()
+
+    # Copy once from the repo (read-only) to the writable runtime location
+    if not runtime_db.exists():
+        shutil.copyfile(bundled_db, runtime_db)
+
+    # Open the runtime copy (read/write is fine in /mount/tmp)
+    try:
+        conn = sqlite3.connect(runtime_db, check_same_thread=False)
+        return conn
+    except Exception as e:
+        st.error(f"Failed to open SQLite DB at {runtime_db}.\n\nError: {e}")
+        st.stop()
+
+# Use it:
+conn = get_sqlite_conn()
+
 
 # --- GLOBAL STYLING ---
 st.markdown(
