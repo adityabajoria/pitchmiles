@@ -1,0 +1,11 @@
+{
+  "sqltools.useNodeRuntime": true,
+  "sqltools.connections": [
+    {
+      "previewLimit": 30,
+      "driver": "SQLite",
+      "name": "Football DB",
+      "database": "${workspaceFolder:pitch-miles}/sql/football.db"
+    }
+  ]
+}
