@@ -8,10 +8,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from streamlit_option_menu import option_menu
+from pathlib import Path
 
 DATASETTE_URL = "http://localhost:8001/football"
 
-conn = sqlite3.connect("/Users/aditya/datascience-projects/pitch-miles/sql/football.db")
+APP_DIR = Path(__file__).resolve().parent.parent  # goes up from dashboard/
+DB_PATH = APP_DIR / "sql" / "football.db"
+conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
 
 # --- GLOBAL STYLING ---
 st.markdown(
