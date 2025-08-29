@@ -1,0 +1,36 @@
+# OS junk
+.DS_Store
+
+# Python / env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+myenv/
+.env
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Data & artifacts (keep only what you want public)
+# comment out lines you DO want to track
+data/*.parquet
+data/*.db
+data/*.sqlite
+data/*.sql
+data/raw/
+*.zip
+*.tar
+*.tar.gz
+
+# SQL — exclude entire folder + any loose .sql files
+sql/
+*.sql
+
+# Old asset folders you no longer use
+assets/
+prem-data/
