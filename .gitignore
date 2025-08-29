@@ -34,3 +34,7 @@ sql/
 # Old asset folders you no longer use
 assets/
 prem-data/
+
+# --- EXCEPTIONS ---
+# Force track this specific DB file
+!sql/football.db
