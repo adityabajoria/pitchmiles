@@ -532,12 +532,6 @@ elif selected == "Upsets & Opponent Strength":
     '''
     home = pd.read_sql_query(query, conn)
 
-    # KMeans (Home)
-    home_X = home[["Elo", "home_win_percentage"]]
-    kmeans_home = KMeans(n_clusters=4, random_state=42)
-    home['home_cluster'] = kmeans_home.fit_predict(home_X)
-    home['home_cluster'] = home["home_cluster"] + 1
-
     # ELO and Away Win Percentage (Scatter)
     query = '''
     SELECT e.Elo, u.away_team, u.away_win_percentage
@@ -545,22 +539,6 @@ elif selected == "Upsets & Opponent Strength":
     JOIN UPSETS u ON e.team = u.away_team;
     '''
     away = pd.read_sql_query(query, conn)
-
-    # KMeans (Away)
-    away_X = away[["Elo", "away_win_percentage"]]
-    kmeans_away = KMeans(n_clusters=4, random_state=42)
-    away['away_cluster'] = kmeans_away.fit_predict(away_X)
-    away['away_cluster'] = away['away_cluster'] + 1
-
-    # Cluster Labels
-    cluster_names = {
-        1: "Struggling Teams",
-        2: "Mid Peformers",
-        3: "Competitive Teams",
-        4: "Elite Teams"
-    }
-    home['home_cluster_name'] = home['home_cluster'].map(cluster_names)
-    away['away_cluster_name'] = away['away_cluster'].map(cluster_names)
 
     with tab2:
         st.subheader("ELO VS Home Win Percentage")
