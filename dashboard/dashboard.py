@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from streamlit_option_menu import option_menu
 from pathlib import Path
+from itertools import islice
 
 DATASETTE_URL = "http://localhost:8001/football"
 
@@ -159,45 +160,47 @@ if selected == "Home":
     st.plotly_chart(fig, use_container_width=True)
 
     # --- DATA ---------------------------------------------------------
-    BASE = "/Users/aditya/datascience-projects/pitch-miles/logos"
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    LOGO_DIR = os.path.join(BASE_DIR, "..", "logos")  # adjust if needed
 
+    # --- CLUB DATA --------------------------------------------------------
     premier = [
-        ("Man City",f"{BASE}/prem/Manchester_City_FC_badge.svg"),
-        ("Liverpool",f"{BASE}/prem/Liverpool_FC.svg"),
-        ("Arsenal",f"{BASE}/prem/Arsenal_FC.svg"),
-        ("Chelsea",f"{BASE}/prem/Chelsea_FC.svg"),
-        ("Man United",f"{BASE}/prem/Manchester_United_FC_crest.svg"),
-        ("Tottenham",f"{BASE}/prem/Tottenham_Hotspur.svg"),
-        ("Newcastle",f"{BASE}/prem/Newcastle_United_Logo.svg"),
-        ("Leicester City",f"{BASE}/prem/Leicester_City_crest.svg"),
-        ("Aston Villa",f"{BASE}/prem/Aston_Villa_FC_new_crest.svg"),
-        ("West Ham",f"{BASE}/prem/West_Ham_United_FC_logo.svg"),
+        ("Man City", f"{LOGO_DIR}/prem/Manchester_City_FC_badge.svg"),
+        ("Liverpool", f"{LOGO_DIR}/prem/Liverpool_FC.svg"),
+        ("Arsenal", f"{LOGO_DIR}/prem/Arsenal_FC.svg"),
+        ("Chelsea", f"{LOGO_DIR}/prem/Chelsea_FC.svg"),
+        ("Man United", f"{LOGO_DIR}/prem/Manchester_United_FC_crest.svg"),
+        ("Tottenham", f"{LOGO_DIR}/prem/Tottenham_Hotspur.svg"),
+        ("Newcastle", f"{LOGO_DIR}/prem/Newcastle_United_Logo.svg"),
+        ("Leicester City", f"{LOGO_DIR}/prem/Leicester_City_crest.svg"),
+        ("Aston Villa", f"{LOGO_DIR}/prem/Aston_Villa_FC_new_crest.svg"),
+        ("West Ham", f"{LOGO_DIR}/prem/West_Ham_United_FC_logo.svg"),
     ]
 
     brazil = [
-        ("Sao Paulo FC",f"{BASE}/brazilian/Brasao_do_Sao_Paulo_Futebol_Clube.svg"),
-        ("Atletico Mineiro",f"{BASE}/brazilian/Clube_Atlético_Mineiro_crest.svg"),
-        ("Flamengo",f"{BASE}/brazilian/Flamengo_braz_logo.svg"),
-        ("Palmeiras",f"{BASE}/brazilian/Palmeiras_logo.svg"),
-        ("Corinthians",f"{BASE}/brazilian/Sport_Club_Corinthians_Paulista_Logo.png"),
-        ("Internacional",f"{BASE}/brazilian/SC_Internacional_Brazil_Logo.svg"),
-        ("Santos FC",f"{BASE}/brazilian/Santos_Logo.png"),
-        ("Gremio",f"{BASE}/brazilian/Gremio_logo.svg"),
-        ("Botafogo",f"{BASE}/brazilian/Botafogo_de_Futebol_e_Regatas_logo.svg"),
-        ("Cruzeiro",f"{BASE}/brazilian/Cruzeiro_Esporte_Clube_(logo).svg"),
+        ("Sao Paulo FC", f"{LOGO_DIR}/brazilian/Brasao_do_Sao_Paulo_Futebol_Clube.svg"),
+        ("Atletico Mineiro", f"{LOGO_DIR}/brazilian/Clube_Atlético_Mineiro_crest.svg"),
+        ("Flamengo", f"{LOGO_DIR}/brazilian/Flamengo_braz_logo.svg"),
+        ("Palmeiras", f"{LOGO_DIR}/brazilian/Palmeiras_logo.svg"),
+        ("Corinthians", f"{LOGO_DIR}/brazilian/Sport_Club_Corinthians_Paulista_Logo.png"),
+        ("Internacional", f"{LOGO_DIR}/brazilian/SC_Internacional_Brazil_Logo.svg"),
+        ("Santos FC", f"{LOGO_DIR}/brazilian/Santos_Logo.png"),
+        ("Gremio", f"{LOGO_DIR}/brazilian/Gremio_logo.svg"),
+        ("Botafogo", f"{LOGO_DIR}/brazilian/Botafogo_de_Futebol_e_Regatas_logo.svg"),
+        ("Cruzeiro", f"{LOGO_DIR}/brazilian/Cruzeiro_Esporte_Clube_(logo).svg"),
     ]
 
     mls = [
-        ("LA Galaxy",f"{BASE}/mls/Los_Angeles_Galaxy_logo.svg"),
-        ("DC United",f"{BASE}/mls/D.C._United_logo_(2016).svg"),
-        ("Houston Dynamo",f"{BASE}/mls/Houston_Dynamo_FC_logo.svg"),
-        ("Seattle Sounders",f"{BASE}/mls/Seattle_Sounders_logo.svg"),
-        ("Sporting Kansas City",f"{BASE}/mls/Sporting_Kansas_City_logo.svg"),
-        ("Chicago Fire",f"{BASE}/mls/Chicago_Fire_logo,_2021.svg"),
-        ("LAFC",f"{BASE}/mls/Los_Angeles_Football_Club.svg"),
-        ("New York Red Bulls",f"{BASE}/mls/New_York_Red_Bulls_logo.svg"),
-        ("Portland Timbers",f"{BASE}/mls/Portland_Timbers_logo.svg"),
-        ("Philadelphia Union",f"{BASE}/mls/Philadelphia_Union_2018_logo.svg"),
+        ("LA Galaxy", f"{LOGO_DIR}/mls/Los_Angeles_Galaxy_logo.svg"),
+        ("DC United", f"{LOGO_DIR}/mls/D.C._United_logo_(2016).svg"),
+        ("Houston Dynamo", f"{LOGO_DIR}/mls/Houston_Dynamo_FC_logo.svg"),
+        ("Seattle Sounders", f"{LOGO_DIR}/mls/Seattle_Sounders_logo.svg"),
+        ("Sporting Kansas City", f"{LOGO_DIR}/mls/Sporting_Kansas_City_logo.svg"),
+        ("Chicago Fire", f"{LOGO_DIR}/mls/Chicago_Fire_logo,_2021.svg"),
+        ("LAFC", f"{LOGO_DIR}/mls/Los_Angeles_Football_Club.svg"),
+        ("New York Red Bulls", f"{LOGO_DIR}/mls/New_York_Red_Bulls_logo.svg"),
+        ("Portland Timbers", f"{LOGO_DIR}/mls/Portland_Timbers_logo.svg"),
+        ("Philadelphia Union", f"{LOGO_DIR}/mls/Philadelphia_Union_2018_logo.svg"),
     ]
 
     LEAGUES = [
@@ -206,7 +209,7 @@ if selected == "Home":
         ("MLS League", mls),
     ]
 
-    # --- STYLES (one-line, centered, ellipsis if too long) ------------
+    # --- STYLES -----------------------------------------------------------
     st.markdown("""
     <style>
     .club-cell { text-align:center; margin-bottom:18px; }
@@ -218,11 +221,8 @@ if selected == "Home":
     </style>
     """, unsafe_allow_html=True)
 
-    # --- RENDER HELPERS -----------------------------------------------
-    from itertools import islice
-
+    # --- HELPERS ----------------------------------------------------------
     def chunks(seq, n):
-        """Yield successive n-sized chunks from seq."""
         it = iter(seq)
         while True:
             chunk = list(islice(it, n))
@@ -241,7 +241,7 @@ if selected == "Home":
                     st.markdown(f"<span class='club-name'>{name}</span>", unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- PAGE SECTION -------------------------------------------------
+    # --- PAGE --------------------------------------------------------------
     st.header("CLUBS BY League")
     for league_name, club_list in LEAGUES:
         league_grid(league_name, club_list, per_row=6, logo_size=82)
