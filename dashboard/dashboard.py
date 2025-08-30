@@ -11,7 +11,7 @@ from streamlit_option_menu import option_menu
 from pathlib import Path
 from itertools import islice
 
-DATASETTE_URL = "http://localhost:8001/football"
+DATASETTE_URL = "https://pitchmiles-datasette.fly.dev/football"
 
 DB_PATH = Path(__file__).resolve().parents[1] / "sql" / "football.db"
 conn = sqlite3.connect(DB_PATH)
@@ -99,22 +99,6 @@ selected = option_menu(
 # --- DASHBOARD HEADER (Always at top for all pages) ---
 st.markdown(f"<h1 style='text-align: center;'>⚽ PitchMiles – {selected}</h1>", unsafe_allow_html=True)
 st.markdown("<hr style='border:1px solid #3A9BDC;'>", unsafe_allow_html=True)
-
-def render_aggrid(df, height=None, page_size=20):
-    gb = GridOptionsBuilder.from_dataframe(df)
-    gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=page_size)
-    gb.configure_default_column(resizable=True, filter=True, sortable=True)
-    gb.configure_grid_options(domLayout='autoHeight')  # Dynamic height, no big gaps
-    grid_options = gb.build()
-
-    return AgGrid(
-        df,
-        gridOptions=grid_options,
-        height=height if height else (len(df) * 30 + 70),  # Fit rows if no fixed height
-        fit_columns_on_grid_load=True,  # Auto-fit columns
-        enable_enterprise_modules=False,
-        allow_unsafe_jscode=True
-    )
 
 if selected == "Home":
     st.write("**Rearch Question**: How does travel distance affect away-team performance across the **3 geographically different leagues** between the **2014-2024?**")
