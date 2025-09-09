@@ -2,7 +2,7 @@ Research Question: “From 2014 through 2024, how much does each additional 100 
 
 Project Url: https://pitchmiles.fly.dev
 
-The focus will be on the countries:
+The focus will be on the 3 different leagues:
 * Premier League (England), Serie A (Brazil), MLS (US)
 specifically I will focus on the top 10 clubs from each country.
 
