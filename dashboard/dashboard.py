@@ -7,7 +7,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from streamlit_option_menu import option_menu
 from pathlib import Path
 from itertools import islice
 
@@ -82,19 +81,8 @@ st.markdown(
 )
 
 # --- NAVBAR ---
-selected = option_menu(
-    menu_title=None,
-    options=["Home", "Overview", "Travel & Performance", "Upsets & Opponent Strength", "Team Comparison"],
-    icons=["house", "bar-chart", "people", "trophy", "shuffle"],
-    default_index=0,
-    orientation="horizontal",
-    styles={
-        "container": {"padding": "0!important", "background-color": "#0a192f"},
-        "icon": {"color": "white", "font-size": "18px"},
-        "nav-link": {"font-size": "16px", "color": "white", "padding": "10px"},
-        "nav-link-selected": {"background-color": "#1e3a8a", "color": "white"},
-    }
-)
+pages = ["Home", "Overview", "Travel & Performance", "Upsets & Opponent Strength", "Team Comparison"]
+selected = st.radio("", pages, horizontal=True, label_visibility="collapsed")
 
 # --- DASHBOARD HEADER (Always at top for all pages) ---
 st.markdown(f"<h1 style='text-align: center;'>⚽ PitchMiles – {selected}</h1>", unsafe_allow_html=True)
