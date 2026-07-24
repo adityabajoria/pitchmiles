@@ -1,141 +1,192 @@
-import requests
 import os
-import numpy as np
-import streamlit as st
 import sqlite3
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from pathlib import Path
 from itertools import islice
 
-DATASETTE_URL = "https://pitchmiles-datasette.fly.dev/football"
+import requests
+import numpy as np
+import pandas as pd
+import streamlit as st
+import plotly.express as px
 
+st.set_page_config(page_title="PitchMiles", page_icon="⚽", layout="wide")
+
+# ---------------------------------------------------------------------------
+# DATABASE — everything reads from the local SQLite file (no external service)
+# ---------------------------------------------------------------------------
 DB_PATH = Path(__file__).resolve().parents[1] / "sql" / "football.db"
-conn = sqlite3.connect(DB_PATH)
 
-# --- GLOBAL STYLING ---
+
+@st.cache_resource
+def get_conn():
+    # check_same_thread=False so Streamlit's rerun threads can share the conn
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+
+
+conn = get_conn()
+
+
+def load_table(name):
+    """Read an entire table from the local DB. Replaces the old Datasette calls."""
+    try:
+        return pd.read_sql(f'SELECT * FROM "{name}"', conn)
+    except Exception as e:
+        st.warning(f"Could not load table '{name}': {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# GLOBAL STYLING  (professional navy theme + gradient header + styled nav)
+# ---------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-    /* --- GLOBAL APP BACKGROUND --- */
+    /* Base app */
     .stApp {
-        background-color: #0a192f !important;  /* navy */
-        color: #ffffff !important;             /* white text */
-    }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
         background-color: #0a192f !important;
-        color: #ffffff !important;
+        color: #e6f1ff !important;
     }
-
-    /* Force all text white */
+    [data-testid="stSidebar"] { background-color: #0a192f !important; color: #e6f1ff !important; }
     html, body, .stApp, .stMarkdown, [class*="st-"],
-    [data-testid="stMarkdownContainer"], label {
+    [data-testid="stMarkdownContainer"], label { color: #e6f1ff !important; }
+
+    /* Hide default Streamlit chrome for a cleaner look */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* --- Gradient hero header --- */
+    .pm-hero {
+        background: linear-gradient(135deg, #0a192f 0%, #112d4e 45%, #1e3a8a 100%);
+        border: 1px solid #1e3a8a;
+        border-radius: 16px;
+        padding: 26px 32px;
+        margin: 4px 0 10px 0;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .pm-hero h1 {
+        margin: 0;
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
         color: #ffffff !important;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .pm-hero .pm-sub {
+        margin-top: 6px;
+        font-size: 15px;
+        font-weight: 500;
+        color: #9ecbff !important;
+    }
+    .pm-accent {
+        height: 4px;
+        width: 120px;
+        margin-top: 14px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #3A9BDC, #64ffda);
     }
 
-    /* --- TABLE STYLING --- */
-    thead tr th {
-        background-color: #0a192f !important;  /* navy header */
-        color: #ffffff !important;             /* white text in header */
+    /* --- Radio nav styled as pill tabs --- */
+    div[role="radiogroup"] {
+        gap: 8px;
+        flex-wrap: wrap;
+        background: #0d2140;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid #16345c;
     }
-    tbody tr td {
-        background-color: #ffffff !important;  /* white rows */
-        color: #0a192f !important;             /* navy text */
+    div[role="radiogroup"] label {
+        background: transparent;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+    div[role="radiogroup"] label:hover { background: #16345c; }
+
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background: #0d2140;
+        border: 1px solid #16345c;
+        border-radius: 12px;
+        padding: 14px 16px;
     }
 
-    /* --- SELECTBOX CLOSED STATE --- */
+    /* Tables */
+    thead tr th { background-color: #0d2140 !important; color: #e6f1ff !important; }
+    tbody tr td { background-color: #ffffff !important; color: #0a192f !important; }
+
+    /* Selectboxes */
     div[data-baseweb="select"] > div {
-        background-color: #0a192f !important;  /* navy */
-        color: #ffffff !important;             /* white text */
-        border-radius: 6px;
-        border: 1px solid #1e3a8a !important;  /* subtle border */
+        background-color: #0d2140 !important; color: #e6f1ff !important;
+        border-radius: 8px; border: 1px solid #1e3a8a !important;
     }
-
-    /* --- SELECTBOX DROPDOWN MENU --- */
-    ul[role="listbox"] {
-        background-color: #000000 !important;  /* black dropdown background */
-        color: #ffffff !important;             /* white text */
-        border-radius: 6px;
-    }
-
-    /* Dropdown options */
-    ul[role="listbox"] li {
-        background-color: #000000 !important;  /* black options */
-        color: #ffffff !important;             /* white text */
-    }
-    ul[role="listbox"] li:hover {
-        background-color: #1e3a8a !important;  /* navy hover highlight */
-    }
-
-    /* Dropdown arrow icon */
-    div[data-baseweb="select"] svg {
-        fill: #ffffff !important;  /* white arrow */
-    }
+    ul[role="listbox"] { background-color: #06101f !important; color: #e6f1ff !important; border-radius: 8px; }
+    ul[role="listbox"] li { background-color: #06101f !important; color: #e6f1ff !important; }
+    ul[role="listbox"] li:hover { background-color: #1e3a8a !important; }
+    div[data-baseweb="select"] svg { fill: #e6f1ff !important; }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
-# --- NAVBAR ---
+# ---------------------------------------------------------------------------
+# NAV
+# ---------------------------------------------------------------------------
 pages = ["Home", "Overview", "Travel & Performance", "Upsets & Opponent Strength", "Team Comparison"]
-selected = st.radio("", pages, horizontal=True, label_visibility="collapsed")
+page = st.radio("nav", pages, horizontal=True, label_visibility="collapsed")
 
-# --- DASHBOARD HEADER (Always at top for all pages) ---
-st.markdown(f"<h1 style='text-align: center;'>⚽ PitchMiles – {selected}</h1>", unsafe_allow_html=True)
-st.markdown("<hr style='border:1px solid #3A9BDC;'>", unsafe_allow_html=True)
-
-if selected == "Home":
-    st.write("**Rearch Question**: How does travel distance affect away-team performance across the **3 geographically different leagues** between the **2014-2024?**")
-    st.markdown(
-    """
-    <p style='font-size:17px; font-weight:600;'>
-        Leagues: Premier League (England), Série A (Brazil), Major League Soccer (USA)
-    </p>
+# ---------------------------------------------------------------------------
+# HERO HEADER
+# ---------------------------------------------------------------------------
+st.markdown(
+    f"""
+    <div class="pm-hero">
+        <h1><span>⚽</span> PitchMiles</h1>
+        <div class="pm-sub">Travel, rest & opponent strength vs. away-team performance · {page}</div>
+        <div class="pm-accent"></div>
+    </div>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
-    matches_played = 1140
-    goals_scored = 2985
-    season_range = "2014-2024"
-    with st.container():
-        st.caption("KEY OVERVIEW")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Matches Played", f"{matches_played}")
-        c2.metric("Goals Scored", f"{goals_scored}")
-        c3.metric("Season", season_range)
+
+# ===========================================================================
+# HOME
+# ===========================================================================
+if page == "Home":
+    st.write(
+        "**Research Question:** How does travel distance affect away-team performance "
+        "across three geographically distinct leagues between 2014 and 2024?"
+    )
+    st.markdown(
+        "<p style='font-size:17px; font-weight:600;'>Leagues: Premier League (England), "
+        "Série A (Brazil), Major League Soccer (USA)</p>",
+        unsafe_allow_html=True,
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Matches Played", "1,140")
+    c2.metric("Goals Scored", "2,985")
+    c3.metric("Seasons", "2014–2024")
 
     map_data = pd.DataFrame({
         "League": ["EPL", "MLS", "Brazilian League"],
         "Latitude": [51.509865, 37.0902, -14.2350],
-        "Longitude": [-0.118092, -95.7129, -51.9253]
+        "Longitude": [-0.118092, -95.7129, -51.9253],
     })
-
-    fig = px.fig = px.scatter_mapbox(
-        map_data,
-        lat="Latitude",
-        lon="Longitude",
-        hover_name="League",
-        color_discrete_sequence=["red"],
-        zoom=0.5,
-        height=400
+    fig = px.scatter_mapbox(
+        map_data, lat="Latitude", lon="Longitude", hover_name="League",
+        color_discrete_sequence=["#64ffda"], zoom=0.5, height=400,
     )
-
-    fig.update_layout(
-        mapbox_style = "carto-darkmatter",
-        margin={"r": 0, "t": 0, "l": 0, "b": 0}
-    )
-
+    fig.update_layout(mapbox_style="carto-darkmatter", margin={"r": 0, "t": 0, "l": 0, "b": 0})
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- DATA ---------------------------------------------------------
+    # --- Club logos ---
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    LOGO_DIR = os.path.join(BASE_DIR, "..", "logos")  # adjust if needed
+    LOGO_DIR = os.path.join(BASE_DIR, "..", "logos")
 
-    # --- CLUB DATA --------------------------------------------------------
     premier = [
         ("Man City", f"{LOGO_DIR}/prem/Manchester_City_FC_badge.svg"),
         ("Liverpool", f"{LOGO_DIR}/prem/Liverpool_FC.svg"),
@@ -148,7 +199,6 @@ if selected == "Home":
         ("Aston Villa", f"{LOGO_DIR}/prem/Aston_Villa_FC_new_crest.svg"),
         ("West Ham", f"{LOGO_DIR}/prem/West_Ham_United_FC_logo.svg"),
     ]
-
     brazil = [
         ("Sao Paulo FC", f"{LOGO_DIR}/brazilian/Brasao_do_Sao_Paulo_Futebol_Clube.svg"),
         ("Atletico Mineiro", f"{LOGO_DIR}/brazilian/Clube_Atlético_Mineiro_crest.svg"),
@@ -161,7 +211,6 @@ if selected == "Home":
         ("Botafogo", f"{LOGO_DIR}/brazilian/Botafogo_de_Futebol_e_Regatas_logo.svg"),
         ("Cruzeiro", f"{LOGO_DIR}/brazilian/Cruzeiro_Esporte_Clube_(logo).svg"),
     ]
-
     mls = [
         ("LA Galaxy", f"{LOGO_DIR}/mls/Los_Angeles_Galaxy_logo.svg"),
         ("DC United", f"{LOGO_DIR}/mls/D.C._United_logo_(2016).svg"),
@@ -174,26 +223,16 @@ if selected == "Home":
         ("Portland Timbers", f"{LOGO_DIR}/mls/Portland_Timbers_logo.svg"),
         ("Philadelphia Union", f"{LOGO_DIR}/mls/Philadelphia_Union_2018_logo.svg"),
     ]
+    LEAGUES = [("Premier League", premier), ("Brazilian League", brazil), ("MLS", mls)]
 
-    LEAGUES = [
-        ("Premier League", premier),
-        ("Brazilian League", brazil),
-        ("MLS League", mls),
-    ]
+    st.markdown(
+        "<style>.club-cell{text-align:center;margin-bottom:18px;}"
+        ".club-name{display:block;margin-top:6px;font-size:14px;line-height:1.1;"
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;"
+        "margin-left:auto;margin-right:auto;}</style>",
+        unsafe_allow_html=True,
+    )
 
-    # --- STYLES -----------------------------------------------------------
-    st.markdown("""
-    <style>
-    .club-cell { text-align:center; margin-bottom:18px; }
-    .club-name {
-    display:block; margin-top:6px; font-size:14px; line-height:1.1;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    max-width:110px; margin-left:auto; margin-right:auto;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- HELPERS ----------------------------------------------------------
     def chunks(seq, n):
         it = iter(seq)
         while True:
@@ -209,83 +248,62 @@ if selected == "Home":
             for col, (name, path) in zip(cols, row):
                 with col:
                     st.markdown('<div class="club-cell">', unsafe_allow_html=True)
-                    st.image(path, width=logo_size)
+                    if os.path.exists(path):
+                        st.image(path, width=logo_size)
                     st.markdown(f"<span class='club-name'>{name}</span>", unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- PAGE --------------------------------------------------------------
-    st.header("CLUBS BY League")
+    st.header("Clubs by League")
     for league_name, club_list in LEAGUES:
         league_grid(league_name, club_list, per_row=6, logo_size=82)
 
+# ===========================================================================
+# OVERVIEW
+# ===========================================================================
+elif page == "Overview":
+    table = st.selectbox("Select a table to view:", ["overview", "league_rankings", "home_away_pts"])
+    st.dataframe(load_table(table), use_container_width=True)
 
-elif selected == "Overview":
-    tables = ["overview", "league_rankings", "home_away_pts"]
-    selected = st.selectbox("Select a table to view:", tables)
-    url = f"{DATASETTE_URL}/{selected}.json?_shape=array&_size=max"
-    sql_tables = pd.DataFrame(requests.get(url).json())
-    st.dataframe(sql_tables, use_container_width=True)
-    st.markdown(f"[Open in Datasette] ({DATASETTE_URL}/{selected})")
+    st.subheader("Team Win Percentage by League & Season")
+    overview_df = load_table("overview")
+    rankings_df = load_table("league_rankings")
+    if not overview_df.empty and not rankings_df.empty:
+        merged_df = overview_df.merge(
+            rankings_df[["team", "league", "win_percentage"]], on=["team", "league"], how="left"
+        )
+        col_a, col_b = st.columns(2)
+        selected_league = col_a.selectbox("Select League:", merged_df["league"].dropna().unique())
+        selected_season = col_b.selectbox("Select Season:", merged_df["season"].dropna().unique())
+        filtered = merged_df[(merged_df["league"] == selected_league) & (merged_df["season"] == selected_season)]
+        if not filtered.empty:
+            fig = px.pie(
+                filtered, names="team", values="win_percentage", color="team",
+                title=f"{selected_league}, {selected_season}", hole=0.4,
+            )
+            fig.update_traces(textinfo="percent+label")
+            st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Rank Progression Across Seasons")
-    overview_url = f"{DATASETTE_URL}/overview.json?_shape=array&_size=max"
-    league_rankings_url = f"{DATASETTE_URL}/league_rankings.json?_shape=array&_size=max"
-    overview_df = pd.DataFrame(requests.get(overview_url).json())
-    rankings_df = pd.DataFrame(requests.get(league_rankings_url).json())
-    merged_df = overview_df.merge(rankings_df[['team', 'league', 'win_percentage']], on=['team', 'league'], how='left')
-    merged_df['league_ranks'] = merged_df.groupby(['league', 'season'])['win_percentage'].rank(ascending=False, method='dense')
-    selected_league = st.selectbox("Select League:", merged_df['league'].unique())
-    selected_season = st.selectbox("Select Season:", merged_df['season'].unique())
-    filtered = merged_df[(merged_df['league'] == selected_league) & (merged_df['season'] == selected_season)]
-    fig = px.pie(
-        filtered,
-        names='team',
-        values='win_percentage',
-        color='team',
-        title=f"{selected_league}, {selected_season}",
-        hole=0.4
-    )
-    fig.update_traces(textinfo='percent+label')  # Show percentages & labels
-    st.plotly_chart(fig, use_container_width=True)
+    st.subheader("Average Travel Distance by Team")
+    travel_df = load_table("avg_distance_restdays")
+    if not travel_df.empty:
+        fig = px.bar(
+            travel_df, x="avg_distance", y="team", color="league", orientation="h",
+            title="Average Travel Distance by Team",
+            labels={"avg_distance": "Avg Distance (km)", "team": "Team"}, height=500,
+        )
+        fig.update_layout(yaxis={"categoryorder": "total ascending"}, template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
 
-
-    st.subheader("Average Travel Distance By Team")
-    travel_url = f"{DATASETTE_URL}/avg_distance_restdays.json?_shape=array&_size=max"
-    travel_df = pd.DataFrame(requests.get(travel_url).json())
-    fig = px.bar(
-        travel_df,
-        x="avg_distance",
-        y="team",
-        color="league",
-        orientation="h",
-        title="Average Travel Distance by Team",
-        labels={"avg_distance": "Avg Distance (km)", "team": "Team"},
-        height=500
-    )
-    fig.update_layout(
-        yaxis={'categoryorder': 'total ascending'},
-        template='plotly_dark'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-
-elif selected == "Travel & Performance":
+# ===========================================================================
+# TRAVEL & PERFORMANCE
+# ===========================================================================
+elif page == "Travel & Performance":
     tab1, tab2 = st.tabs(["Travel Tiers", "Extreme Travel"])
 
     with tab1:
-        # --- TAB 1 ---
-        tables = ["travel_tiers", "travel_pts_bin"]
-        selected = st.selectbox("Select a table to view:", tables, key="t1_tbl")
-        url = f"{DATASETTE_URL}/{selected}.json?_shape=array&_size=max"
+        table = st.selectbox("Select a table to view:", ["travel_tiers", "travel_pts_bin"], key="t1_tbl")
+        st.dataframe(load_table(table), use_container_width=True)
 
-        try:
-            sql_tables = pd.DataFrame(requests.get(url).json())
-            st.dataframe(sql_tables, use_container_width=True)
-            st.markdown(f"[Open in Datasette]({DATASETTE_URL}/{selected})")
-        except Exception as e:
-            st.warning(f"Could not load table: {e}")
-
-        # Scatter: Average Travel Distance vs Away Points Per Team
         query = """
         SELECT h.league, h.team,
             CAST(h.away_points AS FLOAT) AS away_points,
@@ -300,373 +318,212 @@ elif selected == "Travel & Performance":
         ON h.league = d.league AND h.team = d.team
         WHERE h.away_points IS NOT NULL
         """
-        distance_away_pts = pd.read_sql(query, conn).dropna(subset=["avg_travel_km","away_points"])
+        try:
+            distance_away_pts = pd.read_sql(query, conn).dropna(subset=["avg_travel_km", "away_points"])
+        except Exception as e:
+            distance_away_pts = pd.DataFrame()
+            st.warning(f"Could not build scatter: {e}")
 
         if distance_away_pts.empty:
             st.info("No data found for the scatter plot.")
         else:
-            y_max = distance_away_pts['away_points'].max()
+            y_max = distance_away_pts["away_points"].max()
             fig = px.scatter(
-                distance_away_pts,
-                x="avg_travel_km",
-                y="away_points",
-                color="league",
+                distance_away_pts, x="avg_travel_km", y="away_points", color="league",
                 hover_name="team",
-                labels={"avg_travel_km":"Avg Travel Distance (km)", "away_points":"Away Points"},
+                labels={"avg_travel_km": "Avg Travel Distance (km)", "away_points": "Away Points"},
                 title="Average Travel Distance vs Away Points Per Team",
             )
             fig.update_traces(marker=dict(size=10, line=dict(width=1, color="rgba(255,255,255,0.6)")))
             fig.update_yaxes(range=[0, y_max + 20], rangemode="tozero", showgrid=True, gridwidth=0.3)
             fig.update_xaxes(showgrid=True, gridwidth=0.3)
-            fig.update_layout(
-                height=600,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="left", x=0),
-                margin=dict(l=10, r=10, t=60, b=10),
-            )
+            fig.update_layout(height=600, template="plotly_dark",
+                              legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="left", x=0),
+                              margin=dict(l=10, r=10, t=60, b=10))
             st.plotly_chart(fig, use_container_width=True)
 
-
     with tab2:
-        # --- TAB 2 ---
-        tables = ["extreme_travel", "fatigue_loss"]
-        selected = st.selectbox("Select a table to view:", tables, key="t2_tbl")
-        url = f"{DATASETTE_URL}/{selected}.json?_shape=array&_size=max"
+        table = st.selectbox("Select a table to view:", ["extreme_travel", "fatigue_loss"], key="t2_tbl")
+        st.dataframe(load_table(table), use_container_width=True)
 
-        try:
-            sql_tables = pd.DataFrame(requests.get(url).json())
-            st.dataframe(sql_tables, use_container_width=True)
-            st.markdown(f"[Open in Datasette]({DATASETTE_URL}/{selected})")
-        except Exception as e:
-            st.warning(f"Could not load table: {e}")
+        extreme_data = load_table("extreme_travel")
+        if not extreme_data.empty:
+            extreme_data["away_points_earned"] = pd.to_numeric(extreme_data.get("away_points_earned"), errors="coerce")
+            extreme_data["days_rest"] = pd.to_numeric(extreme_data.get("days_rest"), errors="coerce")
+            rest_bins = [-0.1, 50, 100, 150, 200, float("inf")]
+            rest_labels = ["0–50", "51–100", "101–150", "151–200", "201+"]
+            extreme_data["rest_bin"] = pd.cut(extreme_data["days_rest"], bins=rest_bins, labels=rest_labels, include_lowest=True)
+            extreme_data["points_cat"] = extreme_data["away_points_earned"].astype("Int64")
+            extreme_data = extreme_data[extreme_data["points_cat"].isin({0, 1, 3})].dropna(subset=["rest_bin"])
 
-        # Load extreme travel rows (no averages/means used)
-        extreme_url = f"{DATASETTE_URL}/extreme_travel.json?_shape=array&_size=max"
-        extreme_data = pd.DataFrame(requests.get(extreme_url).json())
+            counts = extreme_data.groupby(["rest_bin", "points_cat"]).size().reset_index(name="n")
+            counts["rest_bin"] = pd.Categorical(counts["rest_bin"], categories=rest_labels, ordered=True)
+            counts = counts.sort_values(["rest_bin", "points_cat"]).reset_index(drop=True)
 
-        # numeric safety
-        extreme_data["away_points_earned"] = pd.to_numeric(extreme_data.get("away_points_earned"), errors="coerce")
-        extreme_data["days_rest"] = pd.to_numeric(extreme_data.get("days_rest"), errors="coerce")
+            st.subheader("Extreme Travel — Away Points by Days of Rest")
+            fig = px.bar(
+                counts, x="rest_bin", y="n", color="points_cat", barmode="stack", text="n",
+                labels={"rest_bin": "Days of Rest (bins)", "n": "Matches", "points_cat": "Away Points"},
+                title="Distribution of Away Points by Rest Days (Extreme Travel Matches)",
+            )
+            fig.update_traces(textposition="outside", cliponaxis=False)
+            fig.update_layout(height=520, template="plotly_dark", legend_title_text="Away Points",
+                              margin=dict(l=10, r=10, t=60, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+            with st.expander("Show underlying counts"):
+                st.dataframe(counts, use_container_width=True, hide_index=True)
 
-        # bin days of rest (adjust edges/labels if you prefer)
-        rest_bins   = [-0.1, 50, 100, 150, 200, float("inf")]
-        rest_labels = ["0–50", "51–100", "101–150", "151–200", "201+"]
-        extreme_data["rest_bin"] = pd.cut(extreme_data["days_rest"], bins=rest_bins, labels=rest_labels, include_lowest=True)
+# ===========================================================================
+# UPSETS & OPPONENT STRENGTH
+# ===========================================================================
+elif page == "Upsets & Opponent Strength":
+    tab1, tab2, tab3 = st.tabs(["ELO", "ELO vs Win %", "Upsets"])
 
-        # points categories (0,1,3 only)
-        valid_pts = {0,1,3}
-        extreme_data["points_cat"] = extreme_data["away_points_earned"].astype("Int64")
-        extreme_data = extreme_data[extreme_data["points_cat"].isin(valid_pts)]
-        extreme_data = extreme_data.dropna(subset=["rest_bin"])
-
-        # count matches per (rest_bin, points_cat)
-        counts = (
-            extreme_data
-            .groupby(["rest_bin","points_cat"])
-            .size()
-            .reset_index(name="n")
-        )
-
-        # ensure nice order
-        counts["rest_bin"] = pd.Categorical(counts["rest_bin"], categories=rest_labels, ordered=True)
-        counts = counts.sort_values(["rest_bin","points_cat"]).reset_index(drop=True)
-
-        st.subheader("Extreme Travel — Away Points by Days of Rest")
-        fig = px.bar(
-            counts,
-            x="rest_bin",
-            y="n",
-            color="points_cat",
-            barmode="stack",
-            text="n",
-            labels={"rest_bin":"Days of Rest (bins)", "n":"Matches", "points_cat":"Away Points"},
-            title="Distribution of Away Points by Rest Days (Extreme Travel Matches)",
-        )
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        fig.update_layout(
-            height=520,
-            legend_title_text="Away Points",
-            margin=dict(l=10, r=10, t=60, b=10),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        with st.expander("Show underlying counts"):
-            st.dataframe(counts, use_container_width=True, hide_index=True)
-
-
-elif selected == "Upsets & Opponent Strength":
-    tab1, tab2, tab3, = st.tabs(['ELO', 'ELO vs Win Percentage', 'UPSETS'])
-    # Compute ELO
     def compute_elo(df, k=20, base_rating=1000):
-        """
-        Compute Elo ratings for each team over time.
-        df: DataFrame with ['date', 'home_team', 'away_team', 'home_score', 'away_score']
-        Returns: DataFrame with additional Elo columns
-        """
-        # Ensure date is datetime and sort
         df = df.copy()
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.sort_values('date')
-
-        # Initialize ratings
-        teams = pd.concat([df['home_team'], df['away_team']]).unique()
-        ratings = {team: base_rating for team in teams}
-
-        # Track Elo history
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date")
+        teams = pd.concat([df["home_team"], df["away_team"]]).unique()
+        ratings = {t: base_rating for t in teams}
         home_elos, away_elos = [], []
-
         for _, row in df.iterrows():
-            home, away = row['home_team'], row['away_team']
-            R_home, R_away = ratings[home], ratings[away]
-
-            # Expected results
+            R_home, R_away = ratings[row.home_team], ratings[row.away_team]
             E_home = 1 / (1 + 10 ** ((R_away - R_home) / 400))
-            E_away = 1 - E_home
-
-            # Actual results
-            if row['home_score'] > row['away_score']:
-                S_home, S_away = 1, 0
-            elif row['home_score'] < row['away_score']:
-                S_home, S_away = 0, 1
+            if row.home_score > row.away_score:
+                S_home = 1
+            elif row.home_score < row.away_score:
+                S_home = 0
             else:
-                S_home, S_away = 0.5, 0.5
-
-            # Update ratings
-            ratings[home] = R_home + k * (S_home - E_home)
-            ratings[away] = R_away + k * (S_away - E_away)
-
-            # Save post-match ratings
-            home_elos.append(ratings[home])
-            away_elos.append(ratings[away])
-
-        df['home_elo'] = home_elos
-        df['away_elo'] = away_elos
-
+                S_home = 0.5
+            ratings[row.home_team] = R_home + k * (S_home - E_home)
+            ratings[row.away_team] = R_away + k * ((1 - S_home) - (1 - E_home))
+            home_elos.append(ratings[row.home_team])
+            away_elos.append(ratings[row.away_team])
+        df["home_elo"] = home_elos
+        df["away_elo"] = away_elos
         return df, ratings
 
-    matches = pd.read_sql(
-        '''SELECT league, date, home_team, away_team, home_score, away_score FROM data;''',
-    conn)
-
+    matches = pd.read_sql("SELECT league, date, home_team, away_team, home_score, away_score FROM data;", conn)
     matches_with_elo, final_ratings = compute_elo(matches)
-
-    elo_table = pd.DataFrame(final_ratings.items(), columns=['Team', 'Elo'])
-    elo_table = elo_table.sort_values('Elo', ascending=False).reset_index(drop=True)
+    elo_table = (pd.DataFrame(final_ratings.items(), columns=["Team", "Elo"])
+                 .sort_values("Elo", ascending=False).reset_index(drop=True))
 
     with tab1:
-        st.subheader ("What is ELO")
-        st.write("The ELO Rating System is a way to numerically measure the relative skill of teams based on their match results. It's a way to compare the strength of the teams.")
+        st.subheader("What is Elo?")
+        st.write("The Elo rating system numerically measures the relative skill of teams based on match results.")
         st.markdown("""
-        - Initially, every team has a rating of 1000.
-        - After a match, points are updated between teams based on the result.
-        - Essentially, beating a stronger opponent gives more points than beating a weaker one.
-        - Losing to a much weaker opponent costs you more points than losing to an equally strong team.
+        - Every team starts at a rating of 1000.
+        - After each match, points transfer between teams based on the result.
+        - Beating a stronger opponent gains more points than beating a weaker one.
+        - Losing to a much weaker opponent costs more than losing to an equal.
         """)
-
-        st.subheader("How is ELO Scored")
-        st.write("The ELO Score is calculated using a standard formula.")
-        st.write("The updated rating for any 'Team A' after a match will be:")
+        st.subheader("How is Elo Scored?")
+        st.markdown("**$R_{A_{new}} = R_{A_{old}} + K \\cdot (S_A - E_A)$**")
         st.markdown("""
-        **$R_{A_{new}} = R_{A_{old}} + K \\cdot (S_A - E_A)$**
+        - **$R_{A_{new}}$**: new rating &nbsp; **$R_{A_{old}}$**: old rating
+        - **$K$**: weight (K = 20) &nbsp; **$S_A$**: actual score (1 win / 0.5 draw / 0 loss)
+        - **$E_A$**: expected score
         """)
-        st.write("WHERE")
-        st.markdown("""
-        - **$R_{A_{new}}$**: Team A's new rating
-        - **$R_{A_{old}}$**: Team A's old rating
-        - **$K$**: Weight (how much ratings change per game) – K=20
-        - **$S_A$**: Actual score (1 = win, 0.5 = draw, 0 = loss)
-        - **$E_A$**: Expected score (calculated using its own formula)
-        """)
-        st.subheader("ELO Ratings Leaderboard")
+        st.subheader("Elo Ratings Leaderboard")
         st.dataframe(elo_table, use_container_width=True)
 
-
         elo_long = pd.concat([
-        matches_with_elo[['date', 'league', 'home_team', 'home_elo']].rename(
-            columns={'home_team': 'team', 'home_elo': 'elo'}),
-        matches_with_elo[['date', 'league', 'away_team', 'away_elo']].rename(
-            columns={'away_team': 'team', 'away_elo': 'elo'})
-        ])
-        elo_long = elo_long.sort_values(['team', 'date'])
+            matches_with_elo[["date", "league", "home_team", "home_elo"]].rename(columns={"home_team": "team", "home_elo": "elo"}),
+            matches_with_elo[["date", "league", "away_team", "away_elo"]].rename(columns={"away_team": "team", "away_elo": "elo"}),
+        ]).sort_values(["team", "date"])
+
         st.subheader("Elo Ratings Over Time")
-        # League & team filters
-        selected_league = st.selectbox("Select League", sorted(elo_long['league'].unique()), index=None, placeholder="Choose a league")
-        teams_in_league = sorted(elo_long[elo_long['league'] == selected_league]['team'].unique())
-        selected_team = st.selectbox("Select Team", teams_in_league, index=None, placeholder="Choose a team")
-
-        # Filter data
-        filtered_elo = elo_long[(elo_long['league'] == selected_league) & (elo_long['team'] == selected_team)]
-
-        # Plot
-        fig = px.line(
-            filtered_elo,
-            x='date',
-            y='elo',
-            title=f"Elo Rating Over Time: {selected_team} ({selected_league})",
-            labels={'elo': 'Elo Rating', 'date': 'Date'},
-            template="plotly_dark"
-        )
-
-        fig.update_traces(line=dict(width=1))
-        fig.update_layout(height=500, width=900)
-
-        st.plotly_chart(fig, use_container_width=True)
-
-
-    # ELO and Home Win Percentage (Scatter)
-    query = '''
-    SElECT e.ELO, u.home_team, u.home_win_percentage
-    FROM ELO e
-    JOIN UPSETS u ON e.team = u.home_team
-    '''
-    home = pd.read_sql_query(query, conn)
-
-    # ELO and Away Win Percentage (Scatter)
-    query = '''
-    SELECT e.Elo, u.away_team, u.away_win_percentage
-    FROM ELO e
-    JOIN UPSETS u ON e.team = u.away_team;
-    '''
-    away = pd.read_sql_query(query, conn)
+        selected_league = st.selectbox("Select League", sorted(elo_long["league"].unique()), index=None, placeholder="Choose a league")
+        if selected_league:
+            teams_in_league = sorted(elo_long[elo_long["league"] == selected_league]["team"].unique())
+            selected_team = st.selectbox("Select Team", teams_in_league, index=None, placeholder="Choose a team")
+            if selected_team:
+                filtered_elo = elo_long[(elo_long["league"] == selected_league) & (elo_long["team"] == selected_team)]
+                fig = px.line(filtered_elo, x="date", y="elo",
+                              title=f"Elo Rating Over Time: {selected_team} ({selected_league})",
+                              labels={"elo": "Elo Rating", "date": "Date"}, template="plotly_dark")
+                fig.update_traces(line=dict(width=1.5, color="#64ffda"))
+                fig.update_layout(height=500)
+                st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        st.subheader("ELO VS Home Win Percentage")
-        max_y = home['home_win_percentage'].max()
-        fig_home = px.scatter(
-            home,
-            x="Elo",
-            y="home_win_percentage",
-            color="home_team",
-            hover_data=["home_team","Elo", "home_win_percentage"],
-            title="ELO vs Home Win Percentage",
-            labels={"home_team": "Team","ELO_pts": "ELO Rating", "home_win_percentage": "Home Win Percentage"},
-            template="plotly_dark"
-        )
-        fig_home.update_yaxes(range=[0, max_y + 10])
-        fig_home.update_layout(
-            width=1000,
-            height=600
-        )
-        st.plotly_chart(fig_home, use_container_width=True)
+        upsets = load_table("UPSETS")
+        elo_local = load_table("ELO")
+        if not upsets.empty and not elo_local.empty:
+            home = elo_local.merge(upsets, left_on="team", right_on="home_team", how="inner")
+            if {"Elo", "home_win_percentage"}.issubset(home.columns):
+                st.subheader("Elo vs Home Win %")
+                fig_home = px.scatter(home, x="Elo", y="home_win_percentage", color="home_team",
+                                      hover_data=["home_team", "Elo", "home_win_percentage"],
+                                      title="Elo vs Home Win Percentage", template="plotly_dark")
+                fig_home.update_layout(height=600, showlegend=False)
+                st.plotly_chart(fig_home, use_container_width=True)
 
-        st.subheader("ELO VS Away Win Percentage")
-        max_y = away['away_win_percentage'].max()
-        fig_away = px.scatter(
-            away,
-            x="Elo",
-            y="away_win_percentage",
-            color="away_team",
-            hover_data=["away_team", "Elo", "away_win_percentage"],
-            title="ELO vs Away Win Percentage",
-            labels={"away_team": "Team", "ELO_pts": "ELO Rating", "away_win_percentage": "Away Win Percentage"},
-            template="plotly_dark"
-        )
-        fig_away.update_yaxes(range=[0, max_y + 10])
-        fig_away.update_layout(
-            width=1000,
-            height=600
-        )
-        st.plotly_chart(fig_away, use_container_width=True)
+            away = elo_local.merge(upsets, left_on="team", right_on="away_team", how="inner")
+            if {"Elo", "away_win_percentage"}.issubset(away.columns):
+                st.subheader("Elo vs Away Win %")
+                fig_away = px.scatter(away, x="Elo", y="away_win_percentage", color="away_team",
+                                      hover_data=["away_team", "Elo", "away_win_percentage"],
+                                      title="Elo vs Away Win Percentage", template="plotly_dark")
+                fig_away.update_layout(height=600, showlegend=False)
+                st.plotly_chart(fig_away, use_container_width=True)
+        else:
+            st.info("Elo / Upsets tables unavailable.")
 
-    # UPSET MATCHES
     with tab3:
-        upset_url = f"{DATASETTE_URL}/UPSETS.json?_shape=array&_size=max"
-        sql_tables = pd.DataFrame(requests.get(upset_url).json())
-        season_counts = sql_tables.groupby("season").size().reset_index(name="Upset_Count")
-        season_counts = season_counts.sort_values("season")
+        upsets = load_table("UPSETS")
+        if not upsets.empty and "season" in upsets.columns:
+            season_counts = upsets.groupby("season").size().reset_index(name="Upset_Count").sort_values("season")
+            fig_upsets = px.line(season_counts, x="season", y="Upset_Count", markers=True,
+                                 title="Upsets per Season", template="plotly_dark")
+            fig_upsets.update_traces(line=dict(color="#64ffda"))
+            fig_upsets.update_layout(xaxis_title="Season", yaxis_title="Number of Upsets")
+            st.plotly_chart(fig_upsets, use_container_width=True)
 
-        max_y = season_counts['Upset_Count'].max()
-        fig_upsets = px.line(
-            season_counts,
-            x="season",
-            y="Upset_Count",
-            markers=True,
-            title="Upsets Per Team"
-        )
-        fig_upsets.update_yaxes(range=[0, max_y + 5])
-        fig_upsets.update_layout(xaxis_title="Season", yaxis_title="Number of Upsets")
-        st.plotly_chart(fig_upsets, use_container_width=True)
+            st.subheader("Upset Matches")
+            display = upsets.rename(columns={
+                "league": "League", "season": "Season", "home_team": "Home Team",
+                "away_team": "Away Team", "home_score": "Home Score",
+                "home_win_percentage": "Home Win %", "away_win_percentage": "Away Win %",
+            })
+            cols = [c for c in ["League", "Season", "Home Team", "Away Team", "Home Score", "Home Win %", "Away Win %"] if c in display.columns]
+            st.dataframe(display[cols], use_container_width=True)
 
-        st.subheader("**UPSET Matches**")
-        # Rename columns for display
-        sql_tables.rename(columns={
-            "rowid": "ID",
-            "league": "League",
-            "season": "Season",
-            "home_team": "Home Team",
-            "away_team": "Away Team",
-            "home_score": "Home Score",
-            "home_win_percentage": "Home Win %",
-            "away_win_percentage": "Away Win %"
-        }, inplace=True)
-
-        # Reorder columns for readability
-        sql_tables = sql_tables[["League", "Season", "Home Team", "Away Team", "Home Score", "Home Win %", "Away Win %"]]
-
-        st.dataframe(sql_tables, use_container_width=True)
-
-
+# ===========================================================================
+# TEAM COMPARISON
+# ===========================================================================
 else:
-    st.write("Compare 3 different teams across leagues")
-    rankings = pd.DataFrame(requests.get(f"{DATASETTE_URL}/league_rankings.json?_shape=array&_size=max").json())
-    travel = pd.DataFrame(requests.get(f"{DATASETTE_URL}/avg_distance_restdays.json?_shape=array&_size=max").json())
-    home_away = pd.DataFrame(requests.get(f"{DATASETTE_URL}/home_away_pts.json?_shape=array&_size=max").json())
+    st.write("Compare three teams across leagues.")
+    rankings = load_table("league_rankings")
+    travel = load_table("avg_distance_restdays")
+    home_away = load_table("home_away_pts")
 
-    # Merge them
-    comparison = (
-        rankings
-        .merge(travel, on=["league","team"], how="left")
-        .merge(home_away[["league","team","home_points","away_points","total_points"]], on=["league","team"], how="left")
-    )
-
-    st.subheader("Team Comparison (Cross-League)")
-
-    team1 = st.selectbox(
-        "Select Team 1",
-        [f"{row['team']} ({row['league']})" for _, row in comparison.iterrows()],
-        index=0
-    )
-    team2 = st.selectbox(
-        "Select Team 2",
-        [f"{row['team']} ({row['league']})" for _, row in comparison.iterrows()],
-        index=1
-    )
-    team3 = st.selectbox(
-        "Select Team 3",
-        [f"{row['team']} ({row['league']})" for _, row in comparison.iterrows()],
-        index=1
-    )
-
-    # Extract just team names
-    team1_name = team1.split(" (")[0]
-    team2_name = team2.split(" (")[0]
-    team3_name = team3.split(" (")[0]
-
-    team1_data = comparison[comparison['team'] == team1_name].iloc[0]
-    team2_data = comparison[comparison['team'] == team2_name].iloc[0]
-    team3_data = comparison[comparison['team'] == team3_name].iloc[0]
-
-    st.markdown(f'**{team1}** vs **{team2}** vs **{team3}**')
-
-    col1, col2, col3 = st.columns(3)
-
-    if len(set([team1, team2, team3])) < 3:
-        st.error("Please select 3 different teams for comparision.")
+    if rankings.empty or travel.empty or home_away.empty:
+        st.info("Comparison data unavailable.")
     else:
-        with col1:
-            st.write(f'{team1}')
-            st.metric("Win %", f"{team1_data['win_percentage']:.1f}%")
-            st.metric("Avg Travel", f"{team1_data['avg_distance']:.1f} km")
-            st.metric("Avg Rest Days", f"{team1_data['avg_restdays']:.1f} days")
-            st.metric("Away Points", f"{team1_data['away_points']:.1f}")
-        with col2:
-            st.write(f'{team2}')
-            st.metric("Win %", f"{team2_data['win_percentage']:.1f}%")
-            st.metric("Avg Travel", f"{team2_data['avg_distance']:.1f} km")
-            st.metric("Avg Rest Days", f"{team2_data['avg_restdays']:.1f} days")
-            st.metric("Away Points", f"{team2_data['away_points']:.1f}")
-        with col3:
-            st.write(f'{team3}')
-            st.metric("Win %", f"{team3_data['win_percentage']:.1f}%")
-            st.metric("Avg Travel", f"{team3_data['avg_distance']:.1f} km")
-            st.metric("Avg Rest Days", f"{team3_data['avg_restdays']:.1f} days")
-            st.metric("Away Points", f"{team3_data['away_points']:.1f}")
+        comparison = (rankings
+                      .merge(travel, on=["league", "team"], how="left")
+                      .merge(home_away[["league", "team", "home_points", "away_points", "total_points"]],
+                             on=["league", "team"], how="left"))
+
+        options = [f"{row['team']} ({row['league']})" for _, row in comparison.iterrows()]
+        c1, c2, c3 = st.columns(3)
+        team1 = c1.selectbox("Team 1", options, index=0)
+        team2 = c2.selectbox("Team 2", options, index=min(1, len(options) - 1))
+        team3 = c3.selectbox("Team 3", options, index=min(2, len(options) - 1))
+
+        def row_for(label):
+            name = label.split(" (")[0]
+            return comparison[comparison["team"] == name].iloc[0]
+
+        if len({team1, team2, team3}) < 3:
+            st.error("Please select three different teams to compare.")
+        else:
+            for col, label in zip(st.columns(3), [team1, team2, team3]):
+                d = row_for(label)
+                with col:
+                    st.markdown(f"**{label}**")
+                    st.metric("Win %", f"{d.get('win_percentage', float('nan')):.1f}%")
+                    st.metric("Avg Travel", f"{d.get('avg_distance', float('nan')):.1f} km")
+                    st.metric("Avg Rest Days", f"{d.get('avg_restdays', float('nan')):.1f} days")
+                    st.metric("Away Points", f"{d.get('away_points', float('nan')):.1f}")
