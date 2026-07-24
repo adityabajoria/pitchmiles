@@ -38,3 +38,5 @@ prem-data/
 # --- EXCEPTIONS ---
 # Force track this specific DB file
 !sql/football.db
+env/
+signal_study/epl_features.csv

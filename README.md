@@ -1,67 +1,58 @@
-Research Question: “From 2014 through 2024, how much does each additional 100 km of travel reduce away-team points per game in Brazil’s Série A, Russia’s Premier League, and England’s Premier League, after adjusting for opponent strength and days of rest?”
+# PitchMiles — Travel-Fatigue Signal Study
 
-Project Url: https://pitchmiles.fly.dev
+An out-of-sample signal-research study: **does a travel/rest fatigue signal add
+predictive power for away-team performance, on top of a strong opponent-strength
+baseline?** Built on 10 seasons of English Premier League match data (2014–2024).
 
-The focus will be on the 3 different leagues:
-* Premier League (England), Serie A (Brazil), MLS (US)
-specifically I will focus on the top 10 clubs from each country.
+This is deliberately framed the way an alternative-data research desk evaluates a
+candidate signal: form a hypothesis, engineer causal features, test out-of-sample
+against an honest baseline, and report the effect size *with its uncertainty* —
+including where the signal turns out to be weak.
 
-Step 1: Data Collection --- create a combined csv with the following features:
-* date, league, home_team, away_team, home_team_score, away_team_score
-* home_latitude, home_longitude, away_latitude, away_longitude, distance_km
-* away_points, days_rest, opponent_strength
+## Pipeline
 
-Step 2: Data Cleaning and Engineering
-* Fill missing values, ensure teams team nmaes are consistent across seasons.
-* scale features like distance, opponent_strength and rest days.
+1. **`features.py`** — from raw match results (date, teams, scores), engineers:
+   - `distance_km` — great-circle travel distance to the venue
+   - `days_rest` — days since the away team's previous fixture
+   - `opponent_strength` — **causal** pre-match Elo of the home team (no lookahead:
+     each match's Elo uses only earlier matches)
+   - `away_points` — target (0/1/3)
 
-Step 3: Exploratory Data Analysis (EDA): understand your data, spot patterns, very important for building models.
-* Insepect a few rows and basic stats.
-* Visualize the spread of each feature.
-* Eg. Plot how away_points changes with distance.
-* Look at numeric features, helps identify `multicollinearity` before modelling.
-* Compare travel vs performance for each league
-* Answer the questions, a. Do more rested teams do better with longer travel?
-                        b. Do strong opponents cancel out rest benefits?
-* Outlier / Anomaly Detection (any match with 10+ rest days. any team with high travel?)
-Some important questions to consider:
-- What kind of relationship does distance traveled have with away points? (linear/nonlinear)
-- is the effect consistent across the different leagues?
-- What factors other than rest are more important?
-- Do you need to transform any of the variables?
+2. **`evaluate.py`** — the rigorous part:
+   - **Temporal split** (train ≤2021, test >2021) — never random, to avoid leaking
+     future information into the past.
+   - **Honest baselines** — training-mean, then opponent-strength-only. The fatigue
+     signal must beat opponent-strength *out-of-sample* to count.
+   - **Effect size with 95% CI and p-values** via OLS on standardized features.
 
-Premier League (England):
-1. Manchester City
-2. Liverpool
-3. Arsenal
-4. Chelsea
-5. Manchester United
-6. Tottenham Hotspur
-7. Newcastle United
-8. Leicester City
-9. Aston Villa
-10. West Ham
+## Key finding (EPL, 2014–2024)
 
-Brazilian Serie A (Brazil):
-1. Sao Paulo FC
-2. Atletico Mineiro
-3. Flamengo
-4. Palmeiras
-5. Corinthians
-6. Internacional
-7. Santos FC
-8. Gremio
-9. Botafogo
-10. Cruzeiro
+| Model (out-of-sample) | MAE | R² |
+|---|---|---|
+| Mean baseline | 1.170 | −0.000 |
+| Opponent strength only | 1.065 | +0.109 |
+| + travel + rest signal | 1.065 | +0.112 |
 
-MLS (USA):
-1. LA Galaxy
-2. DC United
-3. Houston Dynamo
-4. Seattle Sounders
-5. Sporting Kansas City
-6. Chicago Fire
-7. LAFC
-8. New York Red Bulls
-9. Portland Timbers
-10. Philadelphia Union
+- **In-sample, travel distance is a statistically significant drag** on away points
+  (≈ −0.05 pts per SD of distance; 95% CI [−0.09, −0.01]; p = 0.011).
+- **Out-of-sample, the fatigue signal adds ~0% incremental accuracy** once opponent
+  strength is known — its apparent edge is largely absorbed by opponent quality.
+
+**Interpretation.** The fatigue effect is real but not *independently* predictive at
+the match level once you control for the obvious factor. This is the common life cycle
+of a candidate signal, and the honest reporting of it — rather than an inflated
+in-sample story — is the point of the study.
+
+## Run it
+
+```bash
+pip install pandas numpy scikit-learn scipy
+python features.py     # writes epl_features.csv
+python evaluate.py     # prints the comparison + effect sizes
+```
+
+## Extending to other leagues
+
+`features.py` includes EPL venue coordinates. Brasileirão and MLS raw files are
+included in the parent repo; add their club coordinates to the `COORDS` map and
+normalize their date/column formats to reuse the same evaluation pipeline.
