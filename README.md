@@ -1,67 +1,41 @@
-Research Question: “From 2014 through 2024, how much does each additional 100 km of travel reduce away-team points per game in Brazil’s Série A, Russia’s Premier League, and England’s Premier League, after adjusting for opponent strength and days of rest?”
+# PitchMiles
 
-Project Url: https://pitchmiles.fly.dev
+**Does travel fatigue actually cost teams points on the road, or does opponent strength explain it away?**
 
-The focus will be on the countries:
-* Premier League (England), Serie A (Brazil), MLS (US)
-specifically I will focus on the top 10 clubs from each country.
+Live dashboard: https://pitchmiles.fly.dev
 
-Step 1: Data Collection --- create a combined csv with the following features:
-* date, league, home_team, away_team, home_team_score, away_team_score
-* home_latitude, home_longitude, away_latitude, away_longitude, distance_km
-* away_points, days_rest, opponent_strength
+## Research Question
 
-Step 2: Data Cleaning and Engineering
-* Fill missing values, ensure teams team nmaes are consistent across seasons.
-* scale features like distance, opponent_strength and rest days.
+From 2014 to 2024, how much does each additional 100 km of away travel change a team's points per game across England's Premier League, Brazil's Série A, and Major League Soccer, after adjusting for opponent strength and days of rest?
 
-Step 3: Exploratory Data Analysis (EDA): understand your data, spot patterns, very important for building models.
-* Insepect a few rows and basic stats.
-* Visualize the spread of each feature.
-* Eg. Plot how away_points changes with distance.
-* Look at numeric features, helps identify `multicollinearity` before modelling.
-* Compare travel vs performance for each league
-* Answer the questions, a. Do more rested teams do better with longer travel?
-                        b. Do strong opponents cancel out rest benefits?
-* Outlier / Anomaly Detection (any match with 10+ rest days. any team with high travel?)
-Some important questions to consider:
-- What kind of relationship does distance traveled have with away points? (linear/nonlinear)
-- is the effect consistent across the different leagues?
-- What factors other than rest are more important?
-- Do you need to transform any of the variables?
+## Why These Three Leagues
 
-Premier League (England):
-1. Manchester City
-2. Liverpool
-3. Arsenal
-4. Chelsea
-5. Manchester United
-6. Tottenham Hotspur
-7. Newcastle United
-8. Leicester City
-9. Aston Villa
-10. West Ham
+Travel distance only becomes a meaningful variable when geography makes it one. England's clubs sit close together, so away trips are short and vary little. Brazil and the United States span thousands of kilometres, producing the wide range of travel distances needed to detect a fatigue effect if one exists. Comparing all three leagues also shows whether any effect scales with distance, which is the core of the research question.
 
-Brazilian Serie A (Brazil):
-1. Sao Paulo FC
-2. Atletico Mineiro
-3. Flamengo
-4. Palmeiras
-5. Corinthians
-6. Internacional
-7. Santos FC
-8. Gremio
-9. Botafogo
-10. Cruzeiro
+## Approach
 
-MLS (USA):
-1. LA Galaxy
-2. DC United
-3. Houston Dynamo
-4. Seattle Sounders
-5. Sporting Kansas City
-6. Chicago Fire
-7. LAFC
-8. New York Red Bulls
-9. Portland Timbers
-10. Philadelphia Union
+The analysis moves from description to formal testing across five sections of the dashboard.
+
+The descriptive views establish the landscape: which teams win, how far each travels, and how competitive balance is distributed within each league. The core view then plots average travel distance against away points, and buckets the most extreme journeys by days of rest to see whether results collapse under the hardest travel.
+
+Because opponent strength is the largest driver of results, the analysis builds an Elo rating for every team and shows that it tracks win percentage closely. Elo is the confounder the study controls for: without it, travel can easily be credited or blamed for results it did not cause.
+
+Finally, a companion out-of-sample model tests the relationship formally, using a temporal train and test split and controlling for pre-match Elo.
+
+## Analysis
+
+**Data pipeline and SQL.** Raw match results for the three leagues begin as CSV files (one per league). These are cleaned and combined, then loaded into a SQLite database (`football.db`), which acts as the single source of truth for the dashboard. The engineered, analysis-ready tables live in SQLite: match-level rows in a `data` table, plus aggregated summaries such as home and away points per team (`home_away_pts`), average travel distance and rest days per team (`avg_distance_restdays`), league standings (`league_rankings`), Elo ratings (`ELO`), and upset records (`UPSETS`). The dashboard reads these tables directly with `SELECT` queries and also runs live SQL at load time, including joins between team-level and match-level tables and aggregations (`AVG`, `GROUP BY`, filtered `WHERE` clauses) to build views like average travel distance against away points. Using SQL for the aggregation keeps the heavy grouping in the database and leaves the Python layer to handle only visualization.
+
+**Feature engineering.** From the raw fixtures, the pipeline derives the variables the research question depends on: travel distance per away fixture (computed from team locations), days of rest between matches, away points earned, and an Elo rating that summarizes opponent strength. Elo is updated match by match, so it reflects each team's form at the time of a given fixture rather than a single season-long average.
+
+**Exploration.** The dashboard works through the question in stages. Descriptive views establish who wins and who travels, then the core view plots average travel against away points and buckets the most extreme journeys by rest. A separate stage builds Elo and demonstrates that it tracks win percentage closely, marking opponent strength as the dominant driver of results and the key variable to control for.
+
+**Key finding.** A companion out-of-sample model tests the relationship formally on the Premier League, using a temporal train and test split and controlling for pre-match Elo. Travel distance is statistically significant in sample, at about -0.05 away points per standard deviation of distance (p = 0.011), but it adds essentially no out-of-sample predictive value once opponent strength is known. The travel-fatigue effect is therefore real but very small, and almost entirely absorbed by opponent quality, so it is not independently useful for predicting away results across these three leagues. The methodological point matters as much as the number: a signal can be genuine in sample and still fail out of sample, which is why the study relies on out-of-sample validation and reports a modest, honest result rather than overstating a weak one.
+
+## Data
+
+Ten seasons (2014 to 2024) of match results from the Premier League, Brazil's Série A, and MLS, focusing on a consistent set of top clubs from each league. Engineered features include travel distance per fixture, days of rest, and a computed Elo rating for opponent strength.
+
+## Tech Stack
+
+Python · Streamlit · pandas · Plotly · SQLite
