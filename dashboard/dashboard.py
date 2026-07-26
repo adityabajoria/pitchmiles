@@ -100,14 +100,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-pages = ["Home", "Overview", "Travel & Performance", "Upsets & Opponent Strength", "Team Comparison"]
+pages = ["Home", "Overview", "Travel & Performance", "Upsets & Opponent Strength", "Team Comparison & Analysis"]
 page = st.radio("nav", pages, horizontal=True, label_visibility="collapsed")
 
 st.markdown(
     f"""
     <div class="pm-hero">
         <h1><span>⚽</span> PitchMiles</h1>
-        <div class="pm-sub">Does travel fatigue move the needle on away-team results? · {page}</div>
+        <div class="pm-sub">Measuring how away travel affects points per game, after adjusting for opponent strength and rest · {page}</div>
         <div class="pm-accent"></div>
     </div>
     """,
@@ -120,20 +120,29 @@ PLOTLY_LAYOUT = dict(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot
 # HOME
 # ===========================================================================
 if page == "Home":
+    st.markdown(
+        "<div class='pm-note' style='border-left:4px solid #64ffda;'>"
+        "<b>Research question:</b> From 2014 to 2024, how much does each 100 km of away travel change a team's "
+        "points per game across England, Brazil, and MLS, after adjusting for opponent strength and rest?"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown("<div class='pm-section'>Abstract</div>", unsafe_allow_html=True)
     st.markdown(
-        "Away teams win less often than home teams, a pattern so consistent it is treated as a rule of the sport. "
-        "This study isolates one possible cause, travel fatigue, and measures how much the distance a team travels and "
-        "the rest it gets affect the points it earns away from home. It uses ten seasons of match data (2014 to 2024) "
-        "from three leagues chosen for their contrasting geography, and it tests whether any travel effect survives once "
-        "opponent strength is taken into account."
+        "Away teams win less often than home teams, a pattern so consistent it is treated as a rule of the sport. This "
+        "study isolates one possible cause, travel fatigue, and measures how much the distance a team travels and the rest "
+        "it gets affect the points it earns on the road. It draws on ten seasons of match data from 2014 to 2024 across "
+        "England's Premier League, Brazil's Série A, and Major League Soccer, three competitions chosen because their very "
+        "different geographies produce very different travel demands. The central test is whether any travel effect "
+        "survives once the largest driver of results, the strength of the opponent, is properly accounted for."
     )
 
     note(
-        "<b>Why three leagues?</b> Travel distance only varies when geography does. England's clubs sit close together, "
-        "so away trips differ little. Brazil and the United States span thousands of kilometres, which creates the range "
-        "of distances needed to detect a fatigue effect. Comparing the three leagues shows whether the effect scales "
-        "with the distances actually travelled."
+        "<b>Why three leagues?</b> Travel distance only becomes a meaningful variable when geography makes it one. England's "
+        "clubs sit close together, so away trips are short and vary little from week to week, which leaves almost no range "
+        "to study. Brazil and the United States span thousands of kilometres, producing the wide spread of travel distances "
+        "needed to detect a fatigue effect if one exists. Comparing all three leagues also reveals whether any effect scales "
+        "with distance, which is exactly what the research question asks."
     )
 
     c1, c2, c3 = st.columns(3)
@@ -143,9 +152,10 @@ if page == "Home":
 
     st.markdown("<div class='pm-section'>The Three Leagues</div>", unsafe_allow_html=True)
     st.markdown(
-        "The map places the three competitions geographically. The wide spatial spread is the point of the design, since "
-        "it supplies the variation in travel distance that the research question depends on, from short local derbies "
-        "to cross country journeys."
+        "The map places the three competitions in their geographic context. The wide spatial spread is the point of the "
+        "design, since it supplies the range of travel distances that the research question depends on. Fixtures range "
+        "from short local derbies in England to cross country journeys in Brazil and the United States, and that contrast "
+        "is what makes a travel effect measurable."
     )
     map_data = pd.DataFrame({
         "League": ["EPL", "MLS", "Brazilian League"],
@@ -159,8 +169,9 @@ if page == "Home":
 
     # --- Structured logo grid ---
     st.markdown("<div class='pm-section'>Clubs by League</div>", unsafe_allow_html=True)
-    st.markdown("The ten clubs analysed from each league, selected as consistent top sides across the study period so that team "
-        "quality is comparable within each competition.")
+    st.markdown("The clubs analysed from each league, chosen as consistent top sides across the study period. Holding the sample to "
+        "comparable teams keeps overall quality broadly similar within each competition, which helps separate the effect of "
+        "travel from the effect of simply being a stronger or weaker side.")
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     LOGO_DIR = os.path.join(BASE_DIR, "..", "logos")
@@ -218,9 +229,10 @@ if page == "Home":
 elif page == "Overview":
     st.markdown("<div class='pm-section'>Descriptive Landscape</div>", unsafe_allow_html=True)
     st.markdown(
-        "This page establishes the basic shape of the data before any effect is tested: who wins, who travels, and how "
-        "those quantities are distributed. These views are context, not evidence. They set the baseline that any claim "
-        "about travel must be checked against."
+        "This page establishes the basic shape of the data before any effect is tested: who wins, who travels, and how those "
+        "quantities are distributed across the three leagues. These views are descriptive context rather than evidence, and "
+        "they deliberately make no causal claim. They set the baseline picture that any later statement about travel must "
+        "be checked against."
     )
 
     table = st.selectbox("Inspect a summary table:", ["overview", "league_rankings", "home_away_pts"])
@@ -228,9 +240,10 @@ elif page == "Overview":
 
     st.markdown("<div class='pm-section'>Competitive Balance</div>", unsafe_allow_html=True)
     st.markdown(
-        "This chart shows how win percentage is shared among teams in a chosen league and season. It matters for the "
-        "research question because concentrated success, where a few strong sides win most matches, can imitate or hide "
-        "a travel effect. Seeing how top heavy each league is clarifies why opponent strength must be controlled."
+        "This chart shows how win percentage is shared among teams within a chosen league and season. It matters for the "
+        "research question because the degree of concentration shapes how results should be read: in a top heavy league, a "
+        "few strong sides win most matches whatever the travel involved. That concentration can either hide a real travel "
+        "effect or imitate one, which is precisely why opponent strength has to be controlled before travel is judged."
     )
     overview_df, rankings_df = load_table("overview"), load_table("league_rankings")
     if not overview_df.empty and not rankings_df.empty:
@@ -248,9 +261,10 @@ elif page == "Overview":
 
     st.markdown("<div class='pm-section'>Travel Burden by Team</div>", unsafe_allow_html=True)
     st.markdown(
-        "Average travel distance per away fixture, by team. This is the exposure variable at the centre of the study. "
-        "The scale gap across leagues is large, since Brazilian and American sides travel far more than English ones, "
-        "which previews where a fatigue effect, if it exists, should be easiest to detect."
+        "This chart shows the average travel distance per away fixture for each team, the core exposure variable in the study. "
+        "The differences in scale across leagues are large, with Brazilian and American sides routinely covering distances "
+        "that English clubs never face. That contrast previews where a fatigue effect should be easiest to detect, since a "
+        "penalty tied to distance should surface first among the teams that travel farthest."
     )
     travel_df = load_table("avg_distance_restdays")
     if not travel_df.empty:
@@ -266,17 +280,20 @@ elif page == "Overview":
 elif page == "Travel & Performance":
     st.markdown("<div class='pm-section'>The Core Question</div>", unsafe_allow_html=True)
     st.markdown(
-        "This page addresses the research question directly: does travelling further, or resting less, cost teams points "
-        "on the road? It looks first at the broad relationship across all fixtures, then narrows to the most extreme "
-        "journeys where any effect should be largest."
+        "This page confronts the research question directly: does travelling further, or resting less, actually cost teams "
+        "points on the road? It approaches the question in two steps, first looking at the broad relationship between travel "
+        "and away points across all fixtures, then narrowing to the most extreme journeys where any effect should be "
+        "largest. Reading the two views together shows whether a travel penalty is present in general, or only in the "
+        "hardest cases, or not clearly at all."
     )
     tab1, tab2 = st.tabs(["Travel Tiers", "Extreme Travel"])
 
     with tab1:
         note(
-            "<b>How to read this:</b> each point is a team, plotting its average away travel against its average away points. "
-            "A real fatigue effect would show a downward trend, with more distance linked to fewer points. A flat or "
-            "scattered cloud instead points to travel being a minor factor next to team quality."
+            "<b>How to read this:</b> each point is a team, plotting its average away travel distance against its average away "
+            "points. If travel fatigue were a strong force, the points would trend downward, with greater distance linked to "
+            "fewer points earned. A flat or scattered cloud instead indicates that travel is at most a minor factor next to "
+            "team quality, which is the pattern the rest of the analysis examines in more detail."
         )
         table = st.selectbox("Inspect a table:", ["travel_tiers", "travel_pts_bin"], key="t1_tbl")
         st.dataframe(load_table(table), use_container_width=True)
@@ -305,16 +322,18 @@ elif page == "Travel & Performance":
             fig.update_yaxes(range=[0, ymax + 20]); fig.update_layout(height=560, **PLOTLY_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
             note(
-                "<b>What we tend to see:</b> the relationship is weak and the leagues overlap heavily. Strong teams score well "
-                "away regardless of distance, and weak teams struggle even on short trips. This is the first sign that "
-                "travel distance on its own is a poor predictor of away points, which the formal model later confirms."
+                "<b>What we tend to see:</b> the relationship is weak, and the three leagues overlap heavily rather than separating "
+                "by distance. Strong teams tend to score well away regardless of how far they travel, while weaker teams "
+                "struggle even on short trips. This is the first indication that travel distance on its own is a poor "
+                "predictor of away points, a reading the formal out of sample model later confirms."
             )
 
     with tab2:
         note(
-            "<b>Why extremes matter:</b> a small effect can be invisible in ordinary fixtures and only appear in the hardest "
-            "cases, the longest trips on the least rest. This view groups the most extreme travel matches by days of rest "
-            "and shows the distribution of away results within each group."
+            "<b>Why extremes matter:</b> a genuine but small effect can be invisible in ordinary fixtures and only emerge in the "
+            "hardest cases, the longest trips taken on the least rest. This view isolates the most extreme travel matches and "
+            "groups them by days of rest, then shows how away results are distributed within each group. If fatigue drives "
+            "results anywhere, this is where it should show up most clearly."
         )
         table = st.selectbox("Inspect a table:", ["extreme_travel", "fatigue_loss"], key="t2_tbl")
         st.dataframe(load_table(table), use_container_width=True)
@@ -339,9 +358,10 @@ elif page == "Travel & Performance":
             fig.update_layout(height=520, **PLOTLY_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
             note(
-                "<b>Interpretation:</b> even on these demanding trips, wins and draws stay common. The absence of a sharp drop in "
-                "results under extreme travel is itself informative, since it puts an upper bound on how large any fatigue "
-                "penalty can be."
+                "<b>Interpretation:</b> even on these most demanding journeys, wins and draws remain common rather than rare. The "
+                "absence of a sharp collapse in away results under extreme travel is itself an informative finding. It places "
+                "an upper bound on how large a fatigue penalty can plausibly be, since the effect stays modest even in the "
+                "conditions designed to expose it."
             )
 
 # ===========================================================================
@@ -350,9 +370,10 @@ elif page == "Travel & Performance":
 elif page == "Upsets & Opponent Strength":
     st.markdown("<div class='pm-section'>The Confounder</div>", unsafe_allow_html=True)
     st.markdown(
-        "Opponent strength is the largest driver of match results, so it must be measured before travel can be judged. "
-        "This page builds an Elo rating for team strength and shows why leaving it uncontrolled would distort any "
-        "estimate of a travel effect."
+        "Opponent strength is the single largest driver of match results, so it has to be measured before any travel effect "
+        "can be trusted. This page builds an Elo rating that summarises each team's strength, then shows why leaving it "
+        "uncontrolled would distort the estimate. A strong team can win after a long trip and a weak team can lose after a "
+        "short one, so without adjusting for the opponent, travel can easily be blamed or excused for results it did not cause."
     )
     tab1, tab2, tab3 = st.tabs(["Elo Explained", "Elo vs Win %", "Upsets"])
 
@@ -376,12 +397,15 @@ elif page == "Upsets & Opponent Strength":
 
     with tab1:
         st.markdown(
-            "Elo converts a team's match history into a single strength number. Every team starts at the same rating, and "
-            "after each match points move from the loser to the winner in proportion to how surprising the result was. "
-            "It gives a continuous measure of quality that can be held constant when estimating the travel effect."
+            "Elo converts a team's full history of results into a single strength number that updates after every match. Each "
+            "team starts from the same rating, and points transfer from the loser to the winner in proportion to how "
+            "surprising the result was, so beating a strong side is worth more than beating a weak one. The result is a "
+            "continuous, always current measure of quality that can be held constant when testing whether travel matters on "
+            "its own."
         )
-        st.markdown("Elo update: $R_{new} = R_{old} + K (S - E)$, where $K$ sets the update size, $S$ is the actual result "
-                    "(1, 0.5, or 0), and $E$ is the expected result implied by the rating gap.")
+        st.markdown("Elo update: $R_{new} = R_{old} + K (S - E)$, where $K$ controls how much each match moves the rating, $S$ is the "
+                    "actual result (1 for a win, 0.5 for a draw, 0 for a loss), and $E$ is the result expected from the rating "
+                    "gap before kickoff.")
         st.markdown("<div class='pm-section'>Strength Leaderboard</div>", unsafe_allow_html=True)
         st.dataframe(elo_leaderboard, use_container_width=True)
 
@@ -390,9 +414,10 @@ elif page == "Upsets & Opponent Strength":
             mwe[["date", "league", "away_team", "away_elo"]].rename(columns={"away_team": "team", "away_elo": "elo"}),
         ]).sort_values(["team", "date"])
         st.markdown("<div class='pm-section'>Elo Trajectories</div>", unsafe_allow_html=True)
-        st.markdown("Elo over time for a chosen team shows rises, peaks, and declines that a single season average would hide. "
-                    "Form context like this explains why the same club can absorb long travel in strong seasons and "
-                    "struggle with it in weak ones.")
+        st.markdown("Tracing a team's Elo over time reveals its form arc, including rises, sustained peaks, and declines that a single "
+                    "season average would smooth away. This context matters for the research question, since the same club can "
+                    "absorb long travel comfortably in a strong season and struggle with it in a weak one. Reading travel "
+                    "effects without accounting for form would therefore be misleading.")
         lg = st.selectbox("League", sorted(elo_long["league"].unique()), index=None, placeholder="Choose a league")
         if lg:
             tms = sorted(elo_long[elo_long["league"] == lg]["team"].unique())
@@ -406,9 +431,10 @@ elif page == "Upsets & Opponent Strength":
 
     with tab2:
         note(
-            "<b>The key relationship:</b> a tight link between Elo and win percentage confirms that opponent strength "
-            "explains most of the variation in results, which is exactly why it must be removed before crediting travel "
-            "with anything."
+            "<b>The key relationship:</b> this view checks whether Elo tracks actual success, which it should if it is a good "
+            "measure of strength. A tight link between Elo and win percentage confirms that opponent quality explains most of "
+            "the variation in results. That is exactly why strength must be removed from the picture before any remaining "
+            "variation can fairly be attributed to travel."
         )
         elo_tbl = load_table("ELO")          # columns: index, Team, Elo
         upsets = load_table("UPSETS")
@@ -432,18 +458,20 @@ elif page == "Upsets & Opponent Strength":
                 fa.update_layout(height=560, showlegend=False, **PLOTLY_LAYOUT)
                 st.plotly_chart(fa, use_container_width=True)
             note(
-                "<b>Takeaway:</b> the clear upward trend in both panels confirms that Elo captures most of what determines "
-                "results. This is the confounder the formal model controls for, and once it does, the apparent travel "
-                "effect shrinks sharply."
+                "<b>Takeaway:</b> the clear upward trend in both panels confirms that Elo captures most of what determines results. "
+                "This is the confounder the formal model controls for, and it is a strong one. Once opponent strength is held "
+                "constant, the apparent effect of travel shrinks sharply, which is the central result the study reports "
+                "honestly rather than overstating."
             )
         else:
             st.info("Elo / Upsets tables unavailable.")
 
     with tab3:
         st.markdown(
-            "An upset is a weaker team beating a stronger one, the kind of result where fatigue could plausibly tip the "
-            "balance. Tracking upset frequency by season tests whether results are becoming more or less predictable "
-            "over time."
+            "An upset, where a weaker team beats a stronger one, is exactly the kind of result where a small effect like travel "
+            "fatigue could plausibly tip the balance. Tracking how often upsets occur across seasons tests whether results "
+            "are becoming more or less predictable over time. A stable upset rate suggests the underlying balance between "
+            "strength and chance has not shifted much across the study period."
         )
         upsets = load_table("UPSETS")
         if not upsets.empty and "season" in upsets.columns:
@@ -463,9 +491,10 @@ elif page == "Upsets & Opponent Strength":
 else:
     st.markdown("<div class='pm-section'>Side-by-Side Profiles</div>", unsafe_allow_html=True)
     st.markdown(
-        "Comparing individual clubs makes the variables concrete. Choosing three teams across leagues shows how travel "
-        "burden, rest, and away returns line up. A club like Seattle travels far more than a London side, yet away "
-        "points stay close, which is the central tension of the study in a single view."
+        "Comparing individual clubs turns the study's abstract variables into something concrete. Selecting three teams, "
+        "ideally from different leagues, shows how their travel burden, rest, and away returns line up side by side. A club "
+        "like Seattle travels far more than a London side, yet its away points stay broadly comparable, which puts the "
+        "study's central tension in a single view: distance differs enormously while results do not follow it closely."
     )
     rankings, travel, home_away = load_table("league_rankings"), load_table("avg_distance_restdays"), load_table("home_away_pts")
 
@@ -494,9 +523,10 @@ else:
             # --- Summary table first ---
             st.markdown("<div class='pm-section'>Summary Table</div>", unsafe_allow_html=True)
             st.markdown(
-                "The raw figures for each selected club. Reading across a row compares the three teams on one dimension. The "
-                "largest gap is almost always travel distance, while away points stay comparatively close, which reflects "
-                "the study's finding that distance and results are only loosely linked."
+                "This table lists the raw figures for each selected club, so the comparison rests on numbers rather than impressions. "
+                "Reading across a row compares the three teams on one dimension at a time. The largest gap is almost always in "
+                "travel distance, while away points remain comparatively close, which reflects the study's finding that "
+                "distance and results are only loosely connected."
             )
             tbl = pd.DataFrame({
                 "Metric": list(metrics.keys()),
@@ -507,9 +537,10 @@ else:
             # --- Radar chart across normalized metrics ---
             st.markdown("<div class='pm-section'>Multi-Metric Profile</div>", unsafe_allow_html=True)
             note(
-                "The radar plot rescales every metric to a common 0 to 1 range so measures on very different units can be read "
-                "on one shape. A team that leads a metric reaches the outer edge, and the overall silhouette summarises "
-                "each club's strengths and burdens at a glance."
+                "The radar plot rescales every metric to a shared 0 to 1 range, with each team measured relative to the highest "
+                "value among the three, so quantities on very different units can be compared on one shape. A team that leads "
+                "a given metric reaches the outer edge on that axis. The overall silhouette then gives an at a glance profile "
+                "of each club's strengths and burdens, making differences in travel and quality easy to see together."
             )
             import plotly.graph_objects as go
             radar_metrics = list(metrics.keys())
@@ -526,19 +557,32 @@ else:
                 ))
             fig_r.update_layout(
                 height=520, polar=dict(radialaxis=dict(visible=True, range=[0, 1], gridcolor="#16345c"),
-                                       angularaxis=dict(gridcolor="#16345c"), bgcolor="rgba(0,0,0,0)"),
+                                    angularaxis=dict(gridcolor="#16345c"), bgcolor="rgba(0,0,0,0)"),
                 **PLOTLY_LAYOUT)
             st.plotly_chart(fig_r, use_container_width=True)
 
     # --- Findings section tying in the signal study ---
     st.markdown("---")
-    st.markdown("<div class='pm-section'>Findings & Formal Validation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='pm-section'>Final Analysis</div>", unsafe_allow_html=True)
     note(
-        "<b>The headline result.</b> The descriptive views point to travel being a weak predictor of away performance. "
-        "A companion out of sample model tests this formally on the Premier League using a temporal train and test split "
-        "and controlling for pre match Elo. Travel distance is statistically significant in sample (about −0.05 away "
-        "points per standard deviation of distance, p = 0.011) but adds essentially no out of sample predictive value once "
-        "opponent strength is known. The travel effect is therefore real but not <i>independently</i> useful for "
-        "prediction, since opponent quality absorbs it. Reporting that honestly, rather than overstating a weak signal, "
-        "is the aim of the study."
+        "The exploration moved deliberately from description to formal testing. The descriptive views set the stage: "
+        "away teams consistently earn fewer points than home teams, and the three leagues differ enormously in how far "
+        "their clubs travel, with Brazilian and American sides covering distances English clubs never face. Yet the core "
+        "scatter of average travel against away points showed only a weak, heavily overlapped relationship, and even the "
+        "most extreme journeys on the shortest rest still produced a healthy share of wins and draws. Those patterns "
+        "already suggested that raw distance is a poor guide to away results, and that something else was doing most of "
+        "the explaining. Building an Elo rating identified what that something was: opponent strength tracks win "
+        "percentage closely, marking it as the dominant driver of outcomes and the key variable any travel estimate has "
+        "to be adjusted for."
+    )
+    note(
+        "The formal experiments confirmed this reading. On the Premier League, using a temporal train and test split and "
+        "controlling for pre match Elo, travel distance is statistically significant in sample, at about −0.05 away "
+        "points per standard deviation of distance with p = 0.011. Once the model is asked to predict unseen matches, "
+        "however, travel adds essentially no value beyond what opponent strength already explains. The key finding is "
+        "therefore precise rather than flashy: travel fatigue is a real but very small effect that is almost entirely "
+        "absorbed by opponent quality, so it is not independently useful for predicting away results across these three "
+        "leagues. Equally important is the methodological lesson, that a signal can be genuine in sample and still fail "
+        "out of sample, which is why the study leans on out of sample validation and reports a modest, honest result "
+        "rather than overstating a weak one."
     )
